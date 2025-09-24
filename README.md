@@ -232,10 +232,25 @@ cat <<'EOF' > /usr/local/bin/update-hosts
 HOSTS_FILE="/etc/hosts"
 
 # Gather values
-MAIN_IP=$(ip route get 1.1.1.1 | awk '{print $7}')
+MAIN_IP=
+count=0
+while [ -z "$MAIN_IP" ] && [ "$count" -lt 60 ]; do
+  MAIN_IP=$(ip route get 1.1.1.1 2>/dev/null | awk 'NR==1 {print $7}')
+  [ -z "$MAIN_IP" ] && sleep 1
+  count=$((count + 1))
+done
+
+if [ -z "$MAIN_IP" ]; then
+  echo "Failed after 60 attempts" >&2
+  exit 1
+fi
+
 HOSTNAME=$(awk '{print $1}' /etc/hostname)
 DOMAIN=$(awk '/^domain/ {print $2}' /etc/resolv.conf)
-FQDN="${HOSTNAME}.${DOMAIN}"
+FQDN="$HOSTNAME"
+if [ -n "$DOMAIN" ]; then
+  FQDN="${HOSTNAME}.${DOMAIN}"
+fi
 
 # Find the line number of 127.0.0.1\tlocalhost
 LOCALHOST_LINE=$(grep -n '^127\.0\.0\.1[[:space:]]\+localhost' "$HOSTS_FILE" | cut -d: -f1)
@@ -257,7 +272,7 @@ EOF
 mkdir -p /etc/systemd/system/networking.service.d
 cat <<EOF > /etc/systemd/system/networking.service.d/override.conf
 [Service]
-ExecStartPost=/usr/local/bin/update-hosts
+ExecStartPost=/bin/sh -c 'sleep 5 && /usr/local/bin/update-hosts &'
 EOF
 chmod +x /usr/local/bin/update-hosts
 systemctl daemon-reload
