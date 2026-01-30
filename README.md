@@ -22,6 +22,7 @@ apt install -y open-vm-tools
 ```
 Initialize Banner, SSH, Nftables, Fail2ban
 ```bash
+SSH_PORT=22
 mkdir -p ~/.backup/home
 cp ~/.bashrc ~/.backup/home/
 cp /etc/skel/.bashrc ~/.bashrc
@@ -67,10 +68,10 @@ MACs hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512-etm@op
 EOF
 
 cat <<EOF > "/etc/ssh/sshd_config.d/Port.conf"
-Port 10022
+Port $SSH_PORT
 EOF
 
-echo 'export TMOUT=1200' > /etc/profile.d/tmout.sh
+echo 'export TMOUT=3600' > /etc/profile.d/tmout.sh
 chmod 644 /etc/profile.d/tmout.sh
 
 cat <<EOF > /etc/nftables.conf
@@ -124,7 +125,8 @@ touch /etc/nftables.d/custom-define.nft
 touch /etc/nftables.d/custom-sets.nft 
 cat > /etc/nftables.d/custom-input.nft <<- EOF
 # sample
-# ip saddr @net_locals tcp dport 22 accept
+# ip saddr @net_locals tcp dport 80 accept
+# tcp dport 0-65565
 EOF
 
 cat <<EOF > /etc/nftables.d/std-define.nft
@@ -137,14 +139,14 @@ define rfc1918_16 = 192.168.0.0/16
 define rfc6598 = 100.64.0.0/10
 EOF
 
-cat <<'EOF' > /etc/nftables.d/std-input.nft
+cat <<EOF > /etc/nftables.d/std-input.nft
 # std-input v1.2.3
 
 # Block attacker ip from fail2ban
 ip saddr @f2b-sshd drop
 
 # Allow SSH traffic from local
-ip saddr @net_locals tcp dport 10022 accept
+ip saddr @net_locals tcp dport $SSH_PORT accept
 
 # Allow DHCP client traffic from local
 ip saddr @net_locals udp dport 68 accept
@@ -176,7 +178,7 @@ systemctl restart nftables
 echo "" > /etc/motd
 rm /etc/update-motd.d/* 2>/dev/null || true 
 
-cat <<'EOF' > /etc/fail2ban/jail.d/ssh-nft.conf
+cat <<EOF > /etc/fail2ban/jail.d/ssh-nft.conf
 #ssh-nft-f2b v1.0.1
 [DEFAULT]
 # Ban for 1 hour, escalate exponentially up to 7 days with randomization
@@ -204,7 +206,7 @@ banaction_allports = nftables-allports
 
 [sshd]
 enabled = true
-port = 10022
+port = $SSH_PORT
 logpath = %(sshd_log)s
 mode = normal
 EOF
