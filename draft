@@ -1,0 +1,6 @@
+BASE_PATH="/var/mnt/tmp" BIND_PATH="/var/tmp" ./mnt_noexec.sh
+BASE_PATH="/mnt/dev/shm" BIND_PATH="/dev/shm" ./mnt_noexec.sh
+
+chown root:root /etc/issue.net
+chmod u-x,go-wx /etc/issue.net
+
